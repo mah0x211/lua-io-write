@@ -17,7 +17,6 @@ dependencies = {
 }
 build_dependencies = {
     "luarocks-build-hooks >= 0.6.0",
-    "configh >= 0.3.0",
 }
 build = {
     type = "hooks",
