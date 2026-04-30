@@ -119,7 +119,7 @@ static int writev_lua(lua_State *L)
     return 4;
 }
 
-LUALIB_API int luaopen_io_writev(lua_State *L)
+LUALIB_API int luaopen_io_write(lua_State *L)
 {
     lua_errno_loadlib(L);
     lua_pushcfunction(L, writev_lua);
