@@ -129,7 +129,7 @@ function testcase.write_table()
     assert.equal(n, 11)
     assert.is_nil(err)
     assert.is_nil(again)
-    assert.is_nil(remaining)
+    assert.equal(remaining, 0)
 
     f:seek('set')
     assert.equal(f:read('*a'), 'hello world')
@@ -260,19 +260,21 @@ function testcase.write_string_nonblock()
     fill_pipe(wfd)
 
     -- test that write returns EAGAIN when the pipe is full
-    local n, err, again = write(wfd, 'x')
+    local n, err, again, remaining = write(wfd, 'x')
     assert.equal(n, 0)
     assert.is_nil(err)
     assert.is_true(again)
+    assert.equal(remaining, 1)
 
     -- drain DRAIN bytes (> PIPE_BUF) to create partial-write space
     assert.equal(#r:read(DRAIN), DRAIN)
 
     -- write DRAIN*2 bytes with only DRAIN bytes free → partial write
-    n, err, again = write(wfd, string.rep('a', DRAIN * 2))
+    n, err, again, remaining = write(wfd, string.rep('a', DRAIN * 2))
     assert.equal(n, DRAIN)
     assert.is_nil(err)
     assert.is_true(again)
+    assert.equal(remaining, DRAIN)
 
     r:close()
     w:close()
@@ -285,7 +287,8 @@ function testcase.write_table_nonblock()
     local wfd = w:fd()
     fill_pipe(wfd)
 
-    -- test that EAGAIN returns the original table as the 4th value
+    -- test that EAGAIN returns the unwritten byte count as the 4th value
+    -- (6 bytes: 'foo'(3) + 'bar'(3))
     local n, err, again, remaining = write(wfd, {
         'foo',
         'bar',
@@ -293,12 +296,11 @@ function testcase.write_table_nonblock()
     assert.equal(n, 0)
     assert.is_nil(err)
     assert.is_true(again)
-    assert.is_table(remaining)
-    assert.equal(remaining[1], 'foo')
-    assert.equal(remaining[2], 'bar')
+    assert.equal(remaining, 6)
 
-    -- drain DRAIN bytes (> PIPE_BUF); test partial write where the first
-    -- entry fits exactly and the second entry has no room: only second returned
+    -- drain DRAIN bytes (> PIPE_BUF); test partial write where the first entry
+    -- (DRAIN bytes) fits exactly and the second entry ('rest', 4 bytes) has no
+    -- room: remaining == 4
     assert.equal(#r:read(DRAIN), DRAIN)
 
     n, err, again, remaining = write(wfd, {
@@ -308,15 +310,11 @@ function testcase.write_table_nonblock()
     assert.equal(n, DRAIN)
     assert.is_nil(err)
     assert.is_true(again)
-    assert.is_table(remaining)
-    assert.equal(remaining[1], 'rest')
-    assert.is_nil(remaining[2])
+    assert.equal(remaining, 4)
 
-    -- pipe is full again; drain DRAIN bytes and test partial write where the
-    -- first entry fits, the second entry is partially written (DRAIN-512 bytes
-    -- fit out of DRAIN), and the third entry is not written at all.
-    -- entry1(512) + partial entry2(DRAIN-512) = DRAIN bytes written;
-    -- remaining: tail of entry2 = rep('b', 512), all of entry3 = rep('c', 100)
+    -- pipe is full again; drain DRAIN bytes and test partial write where
+    -- entry1(512) + partial entry2(DRAIN-512 of DRAIN bytes) = DRAIN written;
+    -- remaining = (512 + DRAIN + 100) - DRAIN = 612
     assert.equal(#r:read(DRAIN), DRAIN)
 
     n, err, again, remaining = write(wfd, {
@@ -327,11 +325,160 @@ function testcase.write_table_nonblock()
     assert.equal(n, DRAIN)
     assert.is_nil(err)
     assert.is_true(again)
-    assert.is_table(remaining)
-    assert.equal(remaining[1], string.rep('b', 512))
-    assert.equal(remaining[2], string.rep('c', 100))
-    assert.is_nil(remaining[3])
+    assert.equal(remaining, 612)
 
     r:close()
     w:close()
+end
+
+function testcase.write_string_pos()
+    local f = assert(io.tmpfile())
+
+    -- test writing from the middle of a string using pos (skip first 6 bytes)
+    local n, err, again, remaining = write(f, 'hello world', nil, 6)
+    assert.equal(n, 5)
+    assert.is_nil(err)
+    assert.is_nil(again)
+    assert.equal(remaining, 0)
+
+    f:seek('set')
+    assert.equal(f:read('*a'), 'world')
+
+    f:close()
+end
+
+function testcase.write_string_pos_at_end()
+    local f = assert(io.tmpfile())
+
+    -- test that pos == len returns 0 with no error and no syscall
+    local n, err, again, remaining = write(f, 'hello', nil, 5)
+    assert.equal(n, 0)
+    assert.is_nil(err)
+    assert.is_nil(again)
+    assert.equal(remaining, 0)
+
+    -- test that pos > len also returns 0
+    n, err, again, remaining = write(f, 'hello', nil, 10)
+    assert.equal(n, 0)
+    assert.is_nil(err)
+    assert.is_nil(again)
+    assert.equal(remaining, 0)
+
+    f:close()
+end
+
+function testcase.write_string_pos_invalid()
+    local f = assert(io.tmpfile())
+
+    -- test that a negative pos argument raises an argument error
+    local ok, err = pcall(write, f, 'hello', nil, -1)
+    assert.is_false(ok)
+    assert.match(err, '#4')
+
+    f:close()
+end
+
+function testcase.write_table_pos()
+    local f = assert(io.tmpfile())
+
+    -- test that pos=6 skips 'hello'(5) + ' '(1) and writes only 'world'(5)
+    local n, err, again, remaining = write(f, {
+        'hello',
+        ' ',
+        'world',
+    }, nil, 6)
+    assert.equal(n, 5)
+    assert.is_nil(err)
+    assert.is_nil(again)
+    assert.equal(remaining, 0)
+
+    f:seek('set')
+    assert.equal(f:read('*a'), 'world')
+
+    -- test that pos falls inside an entry: skip 'abc'(3)+'d'(1) of 'def',
+    -- writing 'ef'+'ghi' = 5 bytes
+    f:seek('set')
+    n, err, again, remaining = write(f, {
+        'abc',
+        'def',
+        'ghi',
+    }, nil, 4)
+    assert.equal(n, 5)
+    assert.is_nil(err)
+    assert.is_nil(again)
+    assert.equal(remaining, 0)
+
+    f:seek('set')
+    assert.equal(f:read('*a'), 'efghi')
+
+    f:close()
+end
+
+function testcase.write_table_pos_at_end()
+    local f = assert(io.tmpfile())
+
+    -- test that pos == total len returns 0 with no syscall
+    local n, err, again, remaining = write(f, {
+        'hello',
+        ' ',
+        'world',
+    }, nil, 11)
+    assert.equal(n, 0)
+    assert.is_nil(err)
+    assert.is_nil(again)
+    assert.equal(remaining, 0)
+
+    f:close()
+end
+
+function testcase.write_string_nonblock_retry_with_pos()
+    local r, w = pipe(true)
+    local wfd = w:fd()
+    fill_pipe(wfd)
+
+    -- drain DRAIN bytes so the pipe has DRAIN bytes free
+    assert.equal(#r:read(DRAIN), DRAIN)
+
+    -- attempt to write DRAIN*2 bytes; only DRAIN bytes fit (partial write)
+    local data = string.rep('x', DRAIN * 2)
+    local n, err, again, remaining = write(wfd, data)
+    assert.equal(n, DRAIN)
+    assert.is_nil(err)
+    assert.is_true(again)
+    assert.equal(remaining, DRAIN)
+
+    -- drain the pipe, then retry using pos = n to skip the already-written bytes
+    assert.equal(#r:read(DRAIN * 2), DRAIN * 2)
+    n, err, again, remaining = write(wfd, data, nil, DRAIN)
+    assert.equal(n, DRAIN)
+    assert.is_nil(err)
+    assert.is_nil(again)
+    assert.equal(remaining, 0)
+
+    r:close()
+    w:close()
+end
+
+function testcase.write_table_hash_ordered()
+    local f = assert(io.tmpfile())
+
+    -- Force reverse-key iteration via hash-bucket ordering: both 1025 and 1030
+    -- hash to bucket 0 in Lua 5.1's 2-entry hash table, so inserting 1030
+    -- first puts it at node[0] and 1025 at node[1]. lua_next returns 1030
+    -- before 1025, triggering the insertion sort shift body that keeps the
+    -- iovec ordered by key value.
+    local data = {}
+    data[1030] = 'b'
+    data[1025] = 'a'
+
+    local n, err, again, remaining = write(f, data)
+    assert.equal(n, 2)
+    assert.is_nil(err)
+    assert.is_nil(again)
+    assert.equal(remaining, 0)
+
+    f:seek('set')
+    assert.equal(f:read('*a'), 'ab')
+
+    f:close()
 end
