@@ -230,7 +230,7 @@ static int write_lua(lua_State *L)
     ssize_t n         = 0;
 
     if (lauxh_isint(L, 1)) {
-        fd = lauxh_checkint(L, 1);
+        fd = lua_tointeger(L, 1);
     } else if (!(fp = lauxh_checkfile(L, 1))) {
         // file has been closed; report EBADF immediately
         lua_pushnil(L);
