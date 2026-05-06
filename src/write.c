@@ -163,13 +163,8 @@ static int writev_lua(lua_State *L, int fd, FILE *fp, off_t offset,
             iov_base += (size_t)pos;
             pos = 0;
             len += iov_len;
-            wiov->iov[wiov->iovcnt] = (struct iovec){
-                .iov_base = iov_base,
-                .iov_len  = iov_len,
-            };
 
             // insert into sorted position to keep iov ordered by key
-            wiov->idx2key[wiov->iovcnt] = new_key;
             for (idx = wiov->iovcnt - 1;
                  idx >= 0 && wiov->idx2key[idx] > new_key; idx--) {
                 wiov->idx2key[idx + 1] = wiov->idx2key[idx];
