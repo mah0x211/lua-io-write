@@ -130,7 +130,7 @@ static int writev_lua(lua_State *L, int fd, FILE *fp, off_t offset,
 
     // validate argument type and count; allow sparse iovec with holes
     lauxh_argcheck(L, lua_istable(L, 2), 2, "string or table expected");
-    lua_settop(L, 4);
+    lua_settop(L, 2);
 
     // build iovec array from Lua strings, consuming pos bytes during iteration
     lua_pushnil(L);
@@ -243,10 +243,10 @@ static int write_lua(lua_State *L)
         fd = fileno(fp);
     }
 
-    // get offset: -1 for current fd position, >=0 for pwrite
-    offset = lauxh_optinteger(L, 3, -1);
     // get pos: source-byte position to start writing from (default 0)
-    pos    = lauxh_optuinteger(L, 4, 0);
+    pos    = lauxh_optuinteger(L, 3, 0);
+    // get offset: -1 for current fd position, >=0 for pwrite
+    offset = lauxh_optinteger(L, 4, -1);
 
     if (!lauxh_isstring(L, 2)) {
         // table of strings; use writev(2)
