@@ -19,7 +19,7 @@ luarocks install io-write
 The following functions return the `error` object created by https://github.com/mah0x211/lua-errno module.
 
 
-## n, err, again, remain = write( file, data [, offset [, pos]] )
+## n, err, again, remain = write( file, data [, pos [, offset]] )
 
 Writes a string or a table of strings to a file handle or file descriptor.
 
@@ -34,8 +34,8 @@ Writes a string or a table of strings to a file handle or file descriptor.
 
 - `file:file*|integer`: a file handle or a raw file descriptor.
 - `data:string|table`: a string, or a table of strings to be written. In a table, `nil` values, empty strings, and non-positive-integer keys are silently skipped.
-- `offset:integer` *(optional)*: byte offset at which to write (`pwrite(2)` / `pwritev(2)`). The file-handle position is not changed. Omit (or pass `nil`) to write at the current position.
 - `pos:integer` *(optional, default `0`)*: source-byte position within `data` to start writing from. Use this to resume a partial write without copying or reallocating `data`. Must be `>= 0`. If `pos >= total length of data`, returns `0, nil, nil, 0` without writing any data (an empty string always calls `write(2)` to validate the fd).
+- `offset:integer` *(optional)*: byte offset at which to write (`pwrite(2)` / `pwritev(2)`). The file-handle position is not changed. Omit (or pass `nil`) to write at the current position.
 
 **Returns**
 
@@ -70,7 +70,7 @@ assert(n == 11 and err == nil)
 
 -- write at a specific byte offset (pwrite/pwritev); FILE* position is unchanged
 f:seek('set')
-n, err = write(f, 'WORLD', 6)  -- overwrites bytes 6-10
+n, err = write(f, 'WORLD', nil, 6)  -- overwrites bytes 6-10
 assert(n == 5 and f:seek() == 0)
 
 -- non-blocking write with retry using pos (pipe example)
@@ -80,7 +80,7 @@ local data = string.rep('x', 65536)
 local head = 0
 repeat
     local again, remain
-    n, err, again, remain = write(w:fd(), data, nil, head)
+    n, err, again, remain = write(w:fd(), data, head)
     assert(n, err)
     head = head + n
     -- remain == 0 when fully written

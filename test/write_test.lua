@@ -70,7 +70,7 @@ function testcase.write_string_with_offset()
 
     -- test that pwrite writes at the given offset without moving FILE* position
     f:seek('set')
-    local n, err, again = write(f, 'WORLD', 6)
+    local n, err, again = write(f, 'WORLD', nil, 6)
     assert.equal(n, 5)
     assert.is_nil(err)
     assert.is_nil(again)
@@ -179,7 +179,7 @@ function testcase.write_table_with_offset()
         'R',
         'L',
         'D',
-    }, 6)
+    }, nil, 6)
     assert.equal(n, 5)
     assert.is_nil(err)
     assert.is_nil(again)
@@ -335,7 +335,7 @@ function testcase.write_string_pos()
     local f = assert(io.tmpfile())
 
     -- test writing from the middle of a string using pos (skip first 6 bytes)
-    local n, err, again, remaining = write(f, 'hello world', nil, 6)
+    local n, err, again, remaining = write(f, 'hello world', 6)
     assert.equal(n, 5)
     assert.is_nil(err)
     assert.is_nil(again)
@@ -351,14 +351,14 @@ function testcase.write_string_pos_at_end()
     local f = assert(io.tmpfile())
 
     -- test that pos == len returns 0 with no error and no syscall
-    local n, err, again, remaining = write(f, 'hello', nil, 5)
+    local n, err, again, remaining = write(f, 'hello', 5)
     assert.equal(n, 0)
     assert.is_nil(err)
     assert.is_nil(again)
     assert.equal(remaining, 0)
 
     -- test that pos > len also returns 0
-    n, err, again, remaining = write(f, 'hello', nil, 10)
+    n, err, again, remaining = write(f, 'hello', 10)
     assert.equal(n, 0)
     assert.is_nil(err)
     assert.is_nil(again)
@@ -371,9 +371,9 @@ function testcase.write_string_pos_invalid()
     local f = assert(io.tmpfile())
 
     -- test that a negative pos argument raises an argument error
-    local ok, err = pcall(write, f, 'hello', nil, -1)
+    local ok, err = pcall(write, f, 'hello', -1)
     assert.is_false(ok)
-    assert.match(err, '#4')
+    assert.match(err, '#3')
 
     f:close()
 end
@@ -386,7 +386,7 @@ function testcase.write_table_pos()
         'hello',
         ' ',
         'world',
-    }, nil, 6)
+    }, 6)
     assert.equal(n, 5)
     assert.is_nil(err)
     assert.is_nil(again)
@@ -402,7 +402,7 @@ function testcase.write_table_pos()
         'abc',
         'def',
         'ghi',
-    }, nil, 4)
+    }, 4)
     assert.equal(n, 5)
     assert.is_nil(err)
     assert.is_nil(again)
@@ -422,7 +422,7 @@ function testcase.write_table_pos_at_end()
         'hello',
         ' ',
         'world',
-    }, nil, 11)
+    }, 11)
     assert.equal(n, 0)
     assert.is_nil(err)
     assert.is_nil(again)
@@ -449,7 +449,7 @@ function testcase.write_string_nonblock_retry_with_pos()
 
     -- drain the pipe, then retry using pos = n to skip the already-written bytes
     assert.equal(#r:read(DRAIN * 2), DRAIN * 2)
-    n, err, again, remaining = write(wfd, data, nil, DRAIN)
+    n, err, again, remaining = write(wfd, data, DRAIN)
     assert.equal(n, DRAIN)
     assert.is_nil(err)
     assert.is_nil(again)
