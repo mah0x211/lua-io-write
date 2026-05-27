@@ -24,6 +24,7 @@ jobs:
         luacheck --no-self .
 
   test:
+    needs: luacheck
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/mah0x211/lua-ci:latest
@@ -44,8 +45,6 @@ jobs:
     -
       name: Checkout
       uses: actions/checkout@v2
-      with:
-        submodules: 'true'
     -
       name: Install
       run: |
@@ -53,7 +52,6 @@ jobs:
     -
       name: Install Tools
       run: |
-        apt-get install lcov -y
         luarocks install testcase
         luarocks install io-fileno
         luarocks install os-pipe
@@ -70,4 +68,5 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage/lcov.info
         flags: unittests
