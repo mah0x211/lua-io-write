@@ -16,13 +16,12 @@ dependencies = {
     "lauxhlib >= 0.6.0",
 }
 build_dependencies = {
-    "luarocks-build-hooks >= 0.6.0",
+    "luarocks-build-hooks >= 0.8.0",
 }
 build = {
     type = "hooks",
     before_build = {
         "$(extra-vars)",
-        "$(configh)",
     },
     extra_variables = {
         CFLAGS = "-Wall -Wno-trigraphs -Wmissing-field-initializers -Wreturn-type -Wmissing-braces -Wparentheses -Wno-switch -Wunused-function -Wunused-label -Wunused-parameter -Wunused-variable -Wunused-value -Wuninitialized -Wunknown-pragmas -Wshadow -Wsign-compare",
@@ -34,6 +33,12 @@ build = {
         },
     },
     modules = {
-        ["io.write"] = "src/write.c",
+        ["io.write"] = {
+            sources = "src/write.c",
+            incdirs = {
+                "$(DEP_ERRNO_INCDIR)",
+                "$(DEP_LAUXHLIB_INCDIR)",
+            },
+        },
     },
 }
