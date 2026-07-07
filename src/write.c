@@ -20,17 +20,17 @@
  *  IN THE SOFTWARE.
  */
 
+// depend
+#include "lauxhlib.h"
+#include "lua_errno.h"
+// lua
+#include <lauxlib.h>
+// system
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
-// lua
-#include <lauxhlib.h>
-#include <lua.h>
-#include <lua_errno.h>
 
 #ifndef IOV_MAX
 # ifdef _XOPEN_IOV_MAX
